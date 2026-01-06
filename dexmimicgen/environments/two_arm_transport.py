@@ -17,7 +17,6 @@ from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
 
 
 class TwoArmTransport(TwoArmDexMGEnv):
-
     def __init__(
         self,
         robots,
@@ -53,9 +52,9 @@ class TwoArmTransport(TwoArmDexMGEnv):
         # settings for table top
         self.tables_boundary = tables_boundary
         self.table_full_size = np.array(tables_boundary)
-        self.table_full_size[
-            1
-        ] *= 0.25  # each table size will only be a fraction of the full boundary
+        self.table_full_size[1] *= (
+            0.25  # each table size will only be a fraction of the full boundary
+        )
         self.table_friction = table_friction
         self.table_offsets = np.zeros((2, 3))
         self.table_offsets[0, 1] = self.tables_boundary[1] * -3 / 8  # scale y offset
@@ -316,7 +315,6 @@ class TwoArmTransport(TwoArmDexMGEnv):
 
         # Reset all object positions using initializer sampler if we're not directly loading from an xml
         if not self.deterministic_reset:
-
             # Sample from the placement initializer for all objects
             object_placements = self.placement_initializer.sample()
 
@@ -405,3 +403,8 @@ class TwoArmTransport(TwoArmDexMGEnv):
         table_height = self.table_offsets[0, 2]
 
         return payload_body_height - table_height > 0.1
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "move the red block to the other side, and move the hammer to the block's original position"
+        return ep_meta

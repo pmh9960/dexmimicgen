@@ -432,3 +432,8 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
             np.array: (dx,dy,dz) distance vector between handle and EEF0
         """
         return self._handle1_xpos - self._eef1_xpos
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "put the two objects in the tray and then lift the tray"
+        return ep_meta

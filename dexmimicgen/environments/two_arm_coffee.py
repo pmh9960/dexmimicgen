@@ -20,7 +20,6 @@ from dexmimicgen.models.objects import (
 
 
 class TwoArmCoffee(TwoArmDexMGEnv):
-
     def __init__(
         self,
         robots,
@@ -265,7 +264,6 @@ class TwoArmCoffee(TwoArmDexMGEnv):
 
         # Reset all object positions using initializer sampler if we're not directly loading from an xml
         if not self.deterministic_reset:
-
             # Sample from the placement initializer for all objects
             object_placements = self.placement_initializer.sample()
 
@@ -535,6 +533,11 @@ class TwoArmCoffee(TwoArmDexMGEnv):
             self._visualize_gripper_to_target(
                 gripper=self.robots[0].gripper["right"], target=self.coffee_machine
             )
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "insert the coffee pod into the coffee machine and close the lid"
+        return ep_meta
 
 
 class TwoArmCoffeeLidClosed(TwoArmCoffee):

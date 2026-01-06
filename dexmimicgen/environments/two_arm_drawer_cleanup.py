@@ -22,7 +22,6 @@ from dexmimicgen.models.objects import DrawerObject
 
 
 class TwoArmDrawerCleanup(TwoArmDexMGEnv):
-
     def __init__(
         self,
         robots,
@@ -237,7 +236,6 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
         )
 
     def _get_placement_initializer(self):
-
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
         self.placement_initializer.append_sampler(
             sampler=UniformRandomSampler(
@@ -301,7 +299,6 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
 
         # Reset all object positions using initializer sampler if we're not directly loading from an xml
         if not self.deterministic_reset:
-
             # Sample from the placement initializer for all objects
             object_placements = self.placement_initializer.sample()
 
@@ -367,3 +364,8 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
             self._visualize_gripper_to_target(
                 gripper=self.robots[0].gripper["right"], target=self.drawer
             )
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "pick the cup and open the drawer, then put the cup in the drawer and close the drawer"
+        return ep_meta

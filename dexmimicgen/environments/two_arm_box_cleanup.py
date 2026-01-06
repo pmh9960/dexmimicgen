@@ -328,3 +328,8 @@ class TwoArmBoxCleanup(TwoArmDexMGEnv):
             self._visualize_gripper_to_target(
                 gripper=self.robots[0].gripper["right"], target=self.lid
             )
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "move the box lid onto the box"
+        return ep_meta
