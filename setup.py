@@ -17,13 +17,12 @@ with open(path.join(this_directory, "requirements.txt"), encoding="utf-8") as f:
     lines = f.readlines()
     requirements = [line.strip() for line in lines]
 
-print([package for package in find_packages() if package.startswith("dexmimicgen")])
+# print([package for package in find_packages() if package.startswith("dexmimicgen")])
+print(find_packages())
 
 setup(
     name="dexmimicgen",
-    packages=[
-        package for package in find_packages() if package.startswith("dexmimicgen")
-    ],
+    packages=find_packages(),
     install_requires=requirements,
     eager_resources=["*"],
     include_package_data=True,
