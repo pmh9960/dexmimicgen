@@ -20,6 +20,4 @@ from dexmimicgen.environments.two_arm_three_piece_assembly import (
 )
 from dexmimicgen.environments.two_arm_transport import TwoArmTransport
 
-import dexmimicgen.utils
-
 __version__ = "0.1.0"
