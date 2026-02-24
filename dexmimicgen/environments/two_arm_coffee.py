@@ -492,6 +492,11 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         if vis_settings["grippers"]:
             self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.coffee_machine)
 
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "insert the coffee pod into the coffee machine and close the lid"
+        return ep_meta
+
 
 class TwoArmCoffeeLidClosed(TwoArmCoffee):
     """

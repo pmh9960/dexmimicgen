@@ -391,3 +391,8 @@ class TwoArmTransport(TwoArmDexMGEnv):
         table_height = self.table_offsets[0, 2]
 
         return payload_body_height - table_height > 0.1
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "move the red block to the other side, and move the hammer to the block's original position"
+        return ep_meta

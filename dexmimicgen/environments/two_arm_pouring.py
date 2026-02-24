@@ -405,3 +405,8 @@ class TwoArmPouring(TwoArmDexMGEnv):
                 gripper=self.robots[0].gripper["right"],
                 target=self._get_vis_target_object(),
             )
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "pick the cup and pour the ball into the bowl, then pick the bowl and place it on the pad"
+        return ep_meta

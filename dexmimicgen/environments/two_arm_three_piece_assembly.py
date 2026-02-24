@@ -415,3 +415,8 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
             self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.piece_1)
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "assemble the three pieces to form a block"
+        return ep_meta

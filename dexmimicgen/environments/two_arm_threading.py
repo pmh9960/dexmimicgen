@@ -248,3 +248,8 @@ class TwoArmThreading(TwoArmDexMGEnv):
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
             self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.needle)
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "pick the thread and insert it into the ring"
+        return ep_meta

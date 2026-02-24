@@ -319,6 +319,11 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
 
         return reward
 
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "pick the can and put it in the box"  # TODO: change lang according to color
+        return ep_meta
+
 
 class TwoArmCanSortRed(TwoArmCanSortRandom):
     def __init__(self, **kwargs):
