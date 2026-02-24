@@ -8,14 +8,13 @@ import numpy as np
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
 from dexmimicgen.models.objects import BoxPatternObject
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
@@ -50,6 +49,8 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mujoco",
         renderer_config=None,
+        *args,
+        **kwargs,
     ):
         # settings for table top
         self.table_full_size = table_full_size
@@ -88,6 +89,8 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
             camera_segmentations=camera_segmentations,
             renderer=renderer,
             renderer_config=renderer_config,
+            *args,
+            **kwargs,
         )
 
     def _get_piece_densities(self):
@@ -206,9 +209,7 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
         mujoco_arena.set_origin([0, 0, 0])
 
         # initialize objects of interest
-        self.piece_1_pattern, self.piece_2_pattern, self.base_pattern = (
-            self._get_piece_patterns()
-        )
+        self.piece_1_pattern, self.piece_2_pattern, self.base_pattern = self._get_piece_patterns()
 
         self.piece_1_size = 0.017
         self.piece_2_size = 0.02
@@ -277,7 +278,8 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
 
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="BaseSampler",
                 mujoco_objects=self.base,
                 x_range=(0.0, 0.0),
@@ -291,7 +293,8 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="Piece1Sampler",
                 mujoco_objects=self.piece_1,
                 x_range=(-0.22, 0.22),
@@ -345,12 +348,9 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
         robot_and_piece_1_in_contact = False
         for robot in self.robots:
             for gripper in robot.gripper:
-                robot_and_piece_1_in_contact = (
-                    robot_and_piece_1_in_contact
-                    or self._check_grasp(
-                        gripper=gripper,
-                        object_geoms=[g for g in self.piece_1.contact_geoms],
-                    )
+                robot_and_piece_1_in_contact = robot_and_piece_1_in_contact or self._check_grasp(
+                    gripper=gripper,
+                    object_geoms=[g for g in self.piece_1.contact_geoms],
                 )
 
         piece_1_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["piece_1"]])
@@ -358,21 +358,18 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
 
         # assume that first piece is assembled when x-y position is close enough to base piece
         # and gripper is not holding the piece
-        first_piece_is_assembled = (
-            np.linalg.norm(piece_1_pos[:2] - base_pos[:2]) < xy_thresh
-        ) and (not robot_and_piece_1_in_contact)
+        first_piece_is_assembled = (np.linalg.norm(piece_1_pos[:2] - base_pos[:2]) < xy_thresh) and (
+            not robot_and_piece_1_in_contact
+        )
         return first_piece_is_assembled
 
     def _check_second_piece_is_assembled(self, xy_thresh=0.02, z_thresh=0.02):
         robot_and_piece_2_in_contact = False
         for robot in self.robots:
             for gripper in robot.gripper:
-                robot_and_piece_2_in_contact = (
-                    robot_and_piece_2_in_contact
-                    or self._check_grasp(
-                        gripper=gripper,
-                        object_geoms=[g for g in self.piece_2.contact_geoms],
-                    )
+                robot_and_piece_2_in_contact = robot_and_piece_2_in_contact or self._check_grasp(
+                    gripper=gripper,
+                    object_geoms=[g for g in self.piece_2.contact_geoms],
                 )
 
         piece_1_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["piece_1"]])
@@ -380,9 +377,7 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
         base_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["base"]])
         z_correct = base_pos[2] + self.piece_2_size * 4
 
-        first_piece_is_assembled = self._check_first_piece_is_assembled(
-            xy_thresh=xy_thresh
-        )
+        first_piece_is_assembled = self._check_first_piece_is_assembled(xy_thresh=xy_thresh)
 
         # second piece is assembled (and task is complete) when it is close enough to first piece in x-y, close
         # enough to first piece in z (and first piece is assembled) and gripper is not holding the piece
@@ -419,11 +414,4 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
 
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
-            self._visualize_gripper_to_target(
-                gripper=self.robots[0].gripper["right"], target=self.piece_1
-            )
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "assemble the three pieces to form a block"
-        return ep_meta
+            self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.piece_1)

@@ -6,17 +6,13 @@ import numpy as np
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import string_to_array
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
-from dexmimicgen.models.objects import (
-    CoffeeMachineObject,
-    CoffeeMachinePodObject,
-)
+from dexmimicgen.models.objects import CoffeeMachineObject, CoffeeMachinePodObject
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmCoffee(TwoArmDexMGEnv):
@@ -190,9 +186,7 @@ class TwoArmCoffee(TwoArmDexMGEnv):
             pos=string_to_array(
                 "0.753078462147161 2.062036796036723e-08 1.5194726087166726"
             ),  # Increased z-axis from 1.35 to 1.8
-            quat=string_to_array(
-                "0.6432409286499023 0.293668270111084 0.2936684489250183 0.6432408690452576"
-            ),
+            quat=string_to_array("0.6432409286499023 0.293668270111084 0.2936684489250183 0.6432408690452576"),
             # camera_attribs={"fovy": "60"},
         )
 
@@ -228,7 +222,8 @@ class TwoArmCoffee(TwoArmDexMGEnv):
 
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="CoffeeMachineSampler",
                 mujoco_objects=self.coffee_machine,
                 x_range=bounds["coffee_machine"]["x"],
@@ -242,7 +237,8 @@ class TwoArmCoffee(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="CoffeePodSampler",
                 mujoco_objects=self.coffee_pod,
                 x_range=bounds["coffee_pod"]["x"],
@@ -296,24 +292,16 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         self.obj_body_id = dict(
             coffee_pod=self.sim.model.body_name2id(self.coffee_pod.root_body),
             coffee_machine=self.sim.model.body_name2id(self.coffee_machine.root_body),
-            coffee_pod_holder=self.sim.model.body_name2id(
-                "coffee_machine_pod_holder_root"
-            ),
+            coffee_pod_holder=self.sim.model.body_name2id("coffee_machine_pod_holder_root"),
             coffee_machine_lid=self.sim.model.body_name2id("coffee_machine_lid_main"),
         )
-        self.hinge_qpos_addr = self.sim.model.get_joint_qpos_addr(
-            "coffee_machine_lid_main_joint0"
-        )
+        self.hinge_qpos_addr = self.sim.model.get_joint_qpos_addr("coffee_machine_lid_main_joint0")
 
         # for checking contact (used in reward function, and potentially observation space)
         self.pod_geom_id = self.sim.model.geom_name2id("coffee_pod_g0")
         self.lid_geom_id = self.sim.model.geom_name2id("coffee_machine_lid_g0")
-        pod_holder_geom_names = [
-            "coffee_machine_pod_holder_cup_body_hc_{}".format(i) for i in range(64)
-        ]
-        self.pod_holder_geom_ids = [
-            self.sim.model.geom_name2id(x) for x in pod_holder_geom_names
-        ]
+        pod_holder_geom_names = ["coffee_machine_pod_holder_cup_body_hc_{}".format(i) for i in range(64)]
+        self.pod_holder_geom_ids = [self.sim.model.geom_name2id(x) for x in pod_holder_geom_names]
 
         # size of bounding box for pod holder
         self.pod_holder_size = self.coffee_machine.pod_holder_size
@@ -338,9 +326,7 @@ class TwoArmCoffee(TwoArmDexMGEnv):
 
     def _check_pod(self):
         # pod should be in pod holder
-        pod_holder_pos = np.array(
-            self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]]
-        )
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]])
         pod_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod"]])
         pod_check = True
 
@@ -350,14 +336,10 @@ class TwoArmCoffee(TwoArmDexMGEnv):
             pod_check = False
 
         # make sure vertical pod dimension is above pod holder lower bound and below the lid lower bound
-        lid_pos = np.array(
-            self.sim.data.body_xpos[self.obj_body_id["coffee_machine_lid"]]
-        )
+        lid_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_machine_lid"]])
         z_lim_low = pod_holder_pos[2] - self.pod_holder_size[2]
         z_lim_high = lid_pos[2] - self.coffee_machine.lid_size[2]
-        if (pod_pos[2] - self.pod_size[2] < z_lim_low) or (
-            pod_pos[2] + self.pod_size[2] > z_lim_high
-        ):
+        if (pod_pos[2] - self.pod_size[2] < z_lim_low) or (pod_pos[2] + self.pod_size[2] > z_lim_high):
             pod_check = False
         return pod_check
 
@@ -368,9 +350,7 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         pod_check = self._check_pod()
 
         # pod should be in pod holder
-        pod_holder_pos = np.array(
-            self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]]
-        )
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]])
         pod_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod"]])
         pod_horz_check = True
 
@@ -399,15 +379,11 @@ class TwoArmCoffee(TwoArmDexMGEnv):
 
         # check is True if the pod is on / near the rim of the pod holder
         rim_horz_tolerance = 0.03
-        rim_horz_check = (
-            np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) < rim_horz_tolerance
-        )
+        rim_horz_check = np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) < rim_horz_tolerance
 
         rim_vert_tolerance = 0.026
         rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
-        rim_vert_check = (rim_vert_length < rim_vert_tolerance) and (
-            rim_vert_length > 0.0
-        )
+        rim_vert_check = (rim_vert_length < rim_vert_tolerance) and (rim_vert_length > 0.0)
         metrics["rim"] = rim_horz_check and rim_vert_check
 
         return metrics
@@ -427,12 +403,8 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         """
         pod_and_pod_holder_contact = False
         for contact in self.sim.data.contact[: self.sim.data.ncon]:
-            if (
-                (contact.geom1 == self.pod_geom_id)
-                and (contact.geom2 in self.pod_holder_geom_ids)
-            ) or (
-                (contact.geom2 == self.pod_geom_id)
-                and (contact.geom1 in self.pod_holder_geom_ids)
+            if ((contact.geom1 == self.pod_geom_id) and (contact.geom2 in self.pod_holder_geom_ids)) or (
+                (contact.geom2 == self.pod_geom_id) and (contact.geom1 in self.pod_holder_geom_ids)
             ):
                 pod_and_pod_holder_contact = True
                 break
@@ -442,9 +414,7 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         """
         check if pod is on pod container rim and not being inserted properly (for reward check)
         """
-        pod_holder_pos = np.array(
-            self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]]
-        )
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]])
         pod_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod"]])
 
         # check if pod is in contact with the container
@@ -454,9 +424,7 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         rim_vert_tolerance_1 = 0.022
         rim_vert_tolerance_2 = 0.026
         rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
-        rim_vert_check = (rim_vert_length > rim_vert_tolerance_1) and (
-            rim_vert_length < rim_vert_tolerance_2
-        )
+        rim_vert_check = (rim_vert_length > rim_vert_tolerance_1) and (rim_vert_length < rim_vert_tolerance_2)
 
         return pod_and_pod_holder_contact and rim_vert_check
 
@@ -464,22 +432,16 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         """
         check if robot is in the process of inserting the pod into the container
         """
-        pod_holder_pos = np.array(
-            self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]]
-        )
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]])
         pod_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod"]])
 
         rim_horz_tolerance = 0.005
-        rim_horz_check = (
-            np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) < rim_horz_tolerance
-        )
+        rim_horz_check = np.linalg.norm(pod_pos[:2] - pod_holder_pos[:2]) < rim_horz_tolerance
 
         rim_vert_tolerance_1 = -0.01
         rim_vert_tolerance_2 = 0.023
         rim_vert_length = pod_pos[2] - pod_holder_pos[2] - self.pod_holder_size[2]
-        rim_vert_check = (rim_vert_length < rim_vert_tolerance_2) and (
-            rim_vert_length > rim_vert_tolerance_1
-        )
+        rim_vert_check = (rim_vert_length < rim_vert_tolerance_2) and (rim_vert_length > rim_vert_tolerance_1)
 
         return rim_horz_check and rim_vert_check
 
@@ -487,9 +449,7 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         """
         check if pod has been inserted successfully
         """
-        pod_holder_pos = np.array(
-            self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]]
-        )
+        pod_holder_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]])
         pod_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod"]])
 
         # center of pod cannot be more than the difference of radii away from the center of pod holder
@@ -530,14 +490,7 @@ class TwoArmCoffee(TwoArmDexMGEnv):
 
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
-            self._visualize_gripper_to_target(
-                gripper=self.robots[0].gripper["right"], target=self.coffee_machine
-            )
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "insert the coffee pod into the coffee machine and close the lid"
-        return ep_meta
+            self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.coffee_machine)
 
 
 class TwoArmCoffeeLidClosed(TwoArmCoffee):

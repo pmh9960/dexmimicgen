@@ -7,14 +7,13 @@ from robosuite.models.arenas import TableArena
 from robosuite.models.objects import BoxObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import string_to_array
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
 from dexmimicgen.models.objects import PotWithHandlesObject
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmLiftTray(TwoArmDexMGEnv):
@@ -139,9 +138,7 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
         # use a shaping reward
         elif self.reward_shaping:
             # lifting reward
-            pot_bottom_height = (
-                self.sim.data.site_xpos[self.pot_center_id][2] - self.pot.top_offset[2]
-            )
+            pot_bottom_height = self.sim.data.site_xpos[self.pot_center_id][2] - self.pot.top_offset[2]
             table_height = self.sim.data.site_xpos[self.table_top_id][2]
             elevation = pot_bottom_height - table_height
             r_lift = min(max(elevation - 0.05, 0), 0.15)
@@ -261,7 +258,8 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
 
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="TraySampler",
                 mujoco_objects=self.pot,
                 x_range=(-0.2, -0.15),
@@ -276,7 +274,8 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
         )
 
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="Obj0Sampler",
                 mujoco_objects=self.obj0,
                 x_range=(0.0, 0.2),
@@ -316,16 +315,10 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
 
         # Additional object references from this env
         self.pot_body_id = self.sim.model.body_name2id(self.pot.root_body)
-        self.handle0_site_id = self.sim.model.site_name2id(
-            self.pot.important_sites["handle0"]
-        )
-        self.handle1_site_id = self.sim.model.site_name2id(
-            self.pot.important_sites["handle1"]
-        )
+        self.handle0_site_id = self.sim.model.site_name2id(self.pot.important_sites["handle0"])
+        self.handle1_site_id = self.sim.model.site_name2id(self.pot.important_sites["handle1"])
         self.table_top_id = self.sim.model.site_name2id("table_top")
-        self.pot_center_id = self.sim.model.site_name2id(
-            self.pot.important_sites["center"]
-        )
+        self.pot_center_id = self.sim.model.site_name2id(self.pot.important_sites["center"])
         self.obj0_id = self.sim.model.body_name2id(self.obj0.root_body)
         self.obj1_id = self.sim.model.body_name2id(self.obj1.root_body)
 
@@ -350,9 +343,7 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
                 else [robot.gripper for robot in self.robots]
             )
             for gripper, handle in zip(grippers, handles):
-                self._visualize_gripper_to_target(
-                    gripper=gripper, target=handle, target_type="site"
-                )
+                self._visualize_gripper_to_target(gripper=gripper, target=handle, target_type="site")
 
     def _check_success(self):
         """
@@ -361,9 +352,7 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
         Returns:
             bool: True if pot is lifted
         """
-        pot_bottom_height = (
-            self.sim.data.site_xpos[self.pot_center_id][2] - self.pot.top_offset[2]
-        )
+        pot_bottom_height = self.sim.data.site_xpos[self.pot_center_id][2] - self.pot.top_offset[2]
         table_height = self.sim.data.site_xpos[self.table_top_id][2]
 
         obj0_height = self.sim.data.body_xpos[self.obj0_id][2]
@@ -371,9 +360,9 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
 
         # easy way to check for object in drawer - check if object in contact with bottom drawer geom
         drawer_bottom_geom = "pot_base"
-        object_in_drawer = self.check_contact(
-            drawer_bottom_geom, self.obj0
-        ) and self.check_contact(drawer_bottom_geom, self.obj1)
+        object_in_drawer = self.check_contact(drawer_bottom_geom, self.obj0) and self.check_contact(
+            drawer_bottom_geom, self.obj1
+        )
 
         # cube is higher than the table top above a margin
         return (
@@ -432,8 +421,3 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
             np.array: (dx,dy,dz) distance vector between handle and EEF0
         """
         return self._handle1_xpos - self._eef1_xpos
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "put the two objects in the tray and then lift the tray"
-        return ep_meta

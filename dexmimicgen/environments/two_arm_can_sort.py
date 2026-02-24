@@ -9,13 +9,12 @@ from robosuite.models.objects import CylinderObject
 from robosuite.models.objects.composite.bin import Bin
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import string_to_array
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmCanSortRandom(TwoArmDexMGEnv):
@@ -55,6 +54,7 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
         *args,
         **kwargs,
     ):
+
         self.red_prob = red_prob
         self.is_red = None
 
@@ -142,7 +142,7 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
             rgba=(0.53, 0.77, 0.95, 1.0),
         )
 
-        if np.random.rand() < self.red_prob:
+        if self.rng.uniform(0.0, 1.0) < self.red_prob:
             self.is_red = True
             can_rgba = (0.58, 0.15, 0.10, 1.0)
         else:
@@ -180,7 +180,8 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
     def _get_placement_initializer(self):
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="RedBoxSampler",
                 mujoco_objects=self.red_box,
                 x_range=(-0.07, -0.07),
@@ -194,7 +195,8 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="BlueBoxSampler",
                 mujoco_objects=self.blue_box,
                 x_range=(-0.07, -0.07),
@@ -208,7 +210,8 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="CanSampler",
                 mujoco_objects=self.can,
                 x_range=(-0.2, -0.1),
@@ -251,12 +254,8 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
             return False
         # TODO: implement success check
 
-        red_box_base_pos = np.array(
-            self.sim.data.geom_xpos[self.sim.model.geom_name2id("red_box_base")]
-        )
-        blue_box_base_pos = np.array(
-            self.sim.data.geom_xpos[self.sim.model.geom_name2id("blue_box_base")]
-        )
+        red_box_base_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("red_box_base")])
+        blue_box_base_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("blue_box_base")])
         can_pos = np.array(self.sim.data.body_xpos[self.obj_body_id["can"]])
 
         x_threshold = self.blue_box.bin_size[0] / 2
@@ -288,9 +287,7 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
 
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
-            self._visualize_gripper_to_target(
-                gripper=self.robots[0].gripper["right"], target=self.can
-            )
+            self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.can)
 
     def reward(self, action=None):
         """
@@ -321,13 +318,6 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
             reward *= self.reward_scale
 
         return reward
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = (
-            "pick the can and put it in the box"  # TODO: change lang according to color
-        )
-        return ep_meta
 
 
 class TwoArmCanSortRed(TwoArmCanSortRandom):

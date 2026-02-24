@@ -6,17 +6,14 @@ import numpy as np
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial, string_to_array
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
 from dexmimicgen.models.objects.composite.bin import Bin
-from dexmimicgen.models.objects.composite_body.stacked_box import (
-    StackedBoxObject,
-)
+from dexmimicgen.models.objects.composite_body.stacked_box import StackedBoxObject
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmBoxCleanup(TwoArmDexMGEnv):
@@ -220,7 +217,8 @@ class TwoArmBoxCleanup(TwoArmDexMGEnv):
         # TODO: replace
 
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="LidSampler",
                 mujoco_objects=self.lid,
                 # x_range=(-0.2, -0.05),
@@ -236,7 +234,8 @@ class TwoArmBoxCleanup(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="BoxSampler",
                 mujoco_objects=self.box,
                 x_range=(-0.05, 0.05),
@@ -276,9 +275,7 @@ class TwoArmBoxCleanup(TwoArmDexMGEnv):
         # NOTE: easiest check is the following. check x and y position alignment being close enough, and z position alignment close enough
 
         # box base geom: box_obj_base
-        box_base_pos = np.array(
-            self.sim.data.geom_xpos[self.sim.model.geom_name2id("box_obj_base")]
-        )
+        box_base_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("box_obj_base")])
 
         # lid base geom: lid_obj_base
         # lid_base_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("lid_obj_base")])
@@ -286,16 +283,10 @@ class TwoArmBoxCleanup(TwoArmDexMGEnv):
         # TODO: swap this when using stacked box lid
         if self.use_translucent_lid:
             lid_base_pos = np.array(
-                self.sim.data.body_xpos[
-                    self.sim.model.body_name2id(
-                        self.lid.naming_prefix + self.lid.box_2.root_body
-                    )
-                ]
+                self.sim.data.body_xpos[self.sim.model.body_name2id(self.lid.naming_prefix + self.lid.box_2.root_body)]
             )
         else:
-            lid_base_pos = np.array(
-                self.sim.data.geom_xpos[self.sim.model.geom_name2id("lid_obj_box_2_g0")]
-            )
+            lid_base_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("lid_obj_box_2_g0")])
         lid_z = self.lid.box_2_size[2]
 
         # TODO: tune these thresholds
@@ -325,11 +316,4 @@ class TwoArmBoxCleanup(TwoArmDexMGEnv):
 
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
-            self._visualize_gripper_to_target(
-                gripper=self.robots[0].gripper["right"], target=self.lid
-            )
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "move the box lid onto the box"
-        return ep_meta
+            self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.lid)

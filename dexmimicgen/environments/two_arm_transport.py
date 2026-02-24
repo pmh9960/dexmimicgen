@@ -7,13 +7,12 @@ from robosuite.models.arenas import MultiTableArena
 from robosuite.models.objects import BoxObject, HammerObject, TransportGroup
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmTransport(TwoArmDexMGEnv):
@@ -48,13 +47,13 @@ class TwoArmTransport(TwoArmDexMGEnv):
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mujoco",
         renderer_config=None,
+        *args,
+        **kwargs,
     ):
         # settings for table top
         self.tables_boundary = tables_boundary
         self.table_full_size = np.array(tables_boundary)
-        self.table_full_size[1] *= (
-            0.25  # each table size will only be a fraction of the full boundary
-        )
+        self.table_full_size[1] *= 0.25  # each table size will only be a fraction of the full boundary
         self.table_friction = table_friction
         self.table_offsets = np.zeros((2, 3))
         self.table_offsets[0, 1] = self.tables_boundary[1] * -3 / 8  # scale y offset
@@ -95,6 +94,8 @@ class TwoArmTransport(TwoArmDexMGEnv):
             camera_segmentations=camera_segmentations,
             renderer=renderer,
             renderer_config=renderer_config,
+            *args,
+            **kwargs,
         )
 
     def reward(self, action=None):
@@ -125,9 +126,7 @@ class TwoArmTransport(TwoArmDexMGEnv):
         # use a shaping reward if specified
         if self.reward_shaping:
             # TODO! So we print a warning and force sparse rewards
-            print(
-                "\n\nWarning! No dense reward current implemented for this task. Forcing sparse rewards\n\n"
-            )
+            print("\n\nWarning! No dense reward current implemented for this task. Forcing sparse rewards\n\n")
             self.reward_shaping = False
 
         # Else this is the sparse reward setting
@@ -282,7 +281,8 @@ class TwoArmTransport(TwoArmDexMGEnv):
             table_pos = self.table_offsets[table_num]
             # Create sampler for this object and add it to the sequential sampler
             self.placement_initializer.append_sampler(
-                sampler=UniformRandomSampler(
+                sampler=MyUniformRandomSampler(
+                    rng=self.rng,
                     name=f"{obj_name}ObjectSampler",
                     mujoco_objects=obj,
                     x_range=[x - pos_tol, x + pos_tol],
@@ -347,8 +347,7 @@ class TwoArmTransport(TwoArmDexMGEnv):
                     obj_pos = (
                         target_bin_pos[0],
                         target_bin_pos[1],
-                        obj_pos[2]
-                        + self.transport.objects["target_bin"].wall_thickness,
+                        obj_pos[2] + self.transport.objects["target_bin"].wall_thickness,
                     )
                 # Set the collision object joints
                 self.sim.data.set_joint_qpos(
@@ -363,12 +362,7 @@ class TwoArmTransport(TwoArmDexMGEnv):
         Returns:
             bool: True if transport has been completed
         """
-        return (
-            True
-            if self.transport.payload_in_target_bin
-            and self.transport.trash_in_trash_bin
-            else False
-        )
+        return True if self.transport.payload_in_target_bin and self.transport.trash_in_trash_bin else False
 
     def _check_lid_on_table(self):
         (g0, g1) = (
@@ -376,13 +370,9 @@ class TwoArmTransport(TwoArmDexMGEnv):
             if self.env_configuration == "single-robot"
             else (self.robots[0].gripper, self.robots[1].gripper)
         )
-        self.lid_body_id = self.sim.model.body_name2id(
-            self.transport.objects["lid"].root_body
-        )
+        self.lid_body_id = self.sim.model.body_name2id(self.transport.objects["lid"].root_body)
 
-        grasping_lid = self._check_grasp(
-            gripper=g0, object_geoms=self.transport.objects["lid"]
-        )
+        grasping_lid = self._check_grasp(gripper=g0, object_geoms=self.transport.objects["lid"])
 
         lid_body_pos = self.sim.data.body_xpos[self.lid_body_id]
         lid_body_height = lid_body_pos[2]
@@ -394,17 +384,10 @@ class TwoArmTransport(TwoArmDexMGEnv):
         return (not grasping_lid) and lid_touching_table
 
     def _check_payload_lifted(self):
-        payload_body_id = self.sim.model.body_name2id(
-            self.transport.objects["payload"].root_body
-        )
+        payload_body_id = self.sim.model.body_name2id(self.transport.objects["payload"].root_body)
 
         payload_body_pos = self.sim.data.body_xpos[payload_body_id]
         payload_body_height = payload_body_pos[2]
         table_height = self.table_offsets[0, 2]
 
         return payload_body_height - table_height > 0.1
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "move the red block to the other side, and move the hammer to the block's original position"
-        return ep_meta

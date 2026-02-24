@@ -10,15 +10,14 @@ from robosuite.models.arenas import TableArena
 from robosuite.models.objects.composite.bin import Bin
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial, add_material, string_to_array
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
 from dexmimicgen.models.objects import DrawerObject
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmDrawerCleanup(TwoArmDexMGEnv):
@@ -186,9 +185,7 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
         # initialize objects of interest
         self.drawer = self._get_drawer_model()
 
-        base_mjcf_path = os.path.join(
-            dexmimicgen.__path__[0], "models/assets/objects/objaverse/"
-        )
+        base_mjcf_path = os.path.join(dexmimicgen.__path__[0], "models/assets/objects/objaverse/")
         from dexmimicgen.models.objects.xml_objects import BlenderObject
 
         def _create_obj(cfg):
@@ -236,9 +233,11 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
         )
 
     def _get_placement_initializer(self):
+
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="DrawerSampler",
                 mujoco_objects=self.drawer,
                 # x_range=[0.1, 0.1],
@@ -254,7 +253,8 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="ObjectSampler",
                 mujoco_objects=self.cleanup_object,
                 # x_range=[0.,  0.],
@@ -283,12 +283,8 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
             object=self.sim.model.body_name2id(self.cleanup_object.root_body),
             drawer=self.sim.model.body_name2id(self.drawer.root_body),
         )
-        self.drawer_qpos_addr = self.sim.model.get_joint_qpos_addr(
-            self.drawer.joints[0]
-        )
-        self.drawer_bottom_geom_id = self.sim.model.geom_name2id(
-            "DrawerObject_drawer_bottom"
-        )
+        self.drawer_qpos_addr = self.sim.model.get_joint_qpos_addr(self.drawer.joints[0])
+        self.drawer_bottom_geom_id = self.sim.model.geom_name2id("DrawerObject_drawer_bottom")
 
     def _reset_internal(self):
         """
@@ -309,8 +305,7 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
                     body_id = self.sim.model.body_name2id(obj.root_body)
                     obj_pos_to_set = np.array(obj_pos)
                     obj_pos_to_set[2] = (
-                        self.table_offset[2]
-                        + 0.005  # hardcode z-value to make sure it lies on table surface
+                        self.table_offset[2] + 0.005  # hardcode z-value to make sure it lies on table surface
                     )
                     self.sim.model.body_pos[body_id] = obj_pos_to_set
                     self.sim.model.body_quat[body_id] = obj_quat
@@ -361,11 +356,4 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
 
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
-            self._visualize_gripper_to_target(
-                gripper=self.robots[0].gripper["right"], target=self.drawer
-            )
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "pick the cup and open the drawer, then put the cup in the drawer and close the drawer"
-        return ep_meta
+            self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.drawer)

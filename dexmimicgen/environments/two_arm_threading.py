@@ -5,14 +5,13 @@
 import numpy as np
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
 from dexmimicgen.models.objects import NeedleObject, RingTripodObject
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmThreading(TwoArmDexMGEnv):
@@ -47,6 +46,8 @@ class TwoArmThreading(TwoArmDexMGEnv):
         camera_segmentations=None,  # {None, instance, class, element}
         renderer="mujoco",
         renderer_config=None,
+        *args,
+        **kwargs,
     ):
         # settings for table top
         self.table_full_size = table_full_size
@@ -85,6 +86,8 @@ class TwoArmThreading(TwoArmDexMGEnv):
             camera_segmentations=camera_segmentations,  # {None, instance, class, element}
             renderer=renderer,
             renderer_config=renderer_config,
+            *args,
+            **kwargs,
         )
 
     def reward(self, action=None):
@@ -155,9 +158,13 @@ class TwoArmThreading(TwoArmDexMGEnv):
     def _get_placement_initializer(self):
         self.placement_initializer = SequentialCompositeSampler(name="ObjectSampler")
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="NeedleSampler",
                 mujoco_objects=self.needle,
+                # x_range=(-0.05278, -0.05278),  # ! sanity check (demo_1)
+                # y_range=(0.18989, 0.18989),  # ! sanity check (demo_1)
+                # rotation=(-0.39542 * np.pi, -0.39542 * np.pi),  # ! sanity check (demo_1)
                 x_range=(-0.2, -0.05),
                 y_range=(0.15, 0.25),
                 rotation=(-2.0 * np.pi / 3.0, -np.pi / 3.0),
@@ -169,9 +176,13 @@ class TwoArmThreading(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="TripodSampler",
                 mujoco_objects=self.tripod,
+                # x_range=(0.03661, 0.03661),  # ! sanity check (demo_1)
+                # y_range=(-0.12291, -0.12291),  # ! sanity check (demo_1)
+                # rotation=(0.32831 * np.pi, 0.32831 * np.pi),  # ! sanity check (demo_1)
                 x_range=(-0.1, 0.15),
                 y_range=(-0.2, -0.1),
                 rotation=(np.pi / 6.0, np.pi / 2.0),
@@ -207,19 +218,13 @@ class TwoArmThreading(TwoArmDexMGEnv):
         """
 
         # needle_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("needle_needle")])
-        needle_pos = np.array(
-            self.sim.data.geom_xpos[self.sim.model.geom_name2id("needle_obj_needle")]
-        )
+        needle_pos = np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("needle_obj_needle")])
 
         # ring position is average of all the surrounding ring geom positions
         ring_pos = np.zeros(3)
         for i in range(self.tripod.num_ring_geoms):
             # ring_pos += np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("tripod_ring_{}".format(i))])
-            ring_pos += np.array(
-                self.sim.data.geom_xpos[
-                    self.sim.model.geom_name2id("tripod_obj_ring_{}".format(i))
-                ]
-            )
+            ring_pos += np.array(self.sim.data.geom_xpos[self.sim.model.geom_name2id("tripod_obj_ring_{}".format(i))])
         ring_pos /= self.tripod.num_ring_geoms
 
         # radius should be the ring size, since we want to check that the bar is within the ring
@@ -242,11 +247,4 @@ class TwoArmThreading(TwoArmDexMGEnv):
 
         # Color the gripper visualization site according to its distance to the cube
         if vis_settings["grippers"]:
-            self._visualize_gripper_to_target(
-                gripper=self.robots[0].gripper["right"], target=self.needle
-            )
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "pick the thread and insert it into the ring"
-        return ep_meta
+            self._visualize_gripper_to_target(gripper=self.robots[0].gripper["right"], target=self.needle)

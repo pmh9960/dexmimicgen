@@ -7,13 +7,12 @@ from robosuite.models.arenas import TableArena
 from robosuite.models.objects import BallObject, BoxObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial, string_to_array
-from robosuite.utils.placement_samplers import (
-    SequentialCompositeSampler,
-    UniformRandomSampler,
-)
+from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
+
+from .my_uniform_random_sampler import MyUniformRandomSampler
 
 
 class TwoArmPouring(TwoArmDexMGEnv):
@@ -174,9 +173,7 @@ class TwoArmPouring(TwoArmDexMGEnv):
         import dexmimicgen
         from dexmimicgen.models.objects.xml_objects import BlenderObject
 
-        base_mjcf_path = os.path.join(
-            dexmimicgen.__path__[0], "models/assets/objects/objaverse/"
-        )
+        base_mjcf_path = os.path.join(dexmimicgen.__path__[0], "models/assets/objects/objaverse/")
 
         def _create_obj(cfg):
             object = BlenderObject(
@@ -248,9 +245,7 @@ class TwoArmPouring(TwoArmDexMGEnv):
             pos=string_to_array(
                 "0.753078462147161 2.062036796036723e-08 1.5194726087166726"
             ),  # Increased z-axis from 1.35 to 1.8
-            quat=string_to_array(
-                "0.6432409286499023 0.293668270111084 0.2936684489250183 0.6432408690452576"
-            ),
+            quat=string_to_array("0.6432409286499023 0.293668270111084 0.2936684489250183 0.6432408690452576"),
             # camera_attribs={"fovy": "60"},
         )
 
@@ -260,7 +255,8 @@ class TwoArmPouring(TwoArmDexMGEnv):
         # TODO: replace
 
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="PadSampler",
                 mujoco_objects=self.pad,
                 x_range=(-0.1, -0.1),
@@ -274,7 +270,8 @@ class TwoArmPouring(TwoArmDexMGEnv):
             )
         )
         self.placement_initializer.append_sampler(
-            sampler=UniformRandomSampler(
+            sampler=MyUniformRandomSampler(
+                rng=self.rng,
                 name="CupSampler",
                 mujoco_objects=self.cup,
                 # x_range=(-0.2, -0.05),
@@ -295,7 +292,7 @@ class TwoArmPouring(TwoArmDexMGEnv):
                 name="BowlSampler",
                 mujoco_objects=self.bowl,
                 x_range=(-0.15, -0.05),
-                y_range=(-0.15, -0.1),
+                y_range=(-0.10, -0.15),
                 rotation=(0.0, 0.0),
                 rotation_axis="z",
                 ensure_object_boundary_in_range=False,
@@ -383,13 +380,7 @@ class TwoArmPouring(TwoArmDexMGEnv):
         xy_dist_to_pad = np.linalg.norm(pad_pos[:2] - bowl_pos[:2])
 
         # print("ball_in_bowl", ball_in_bowl, "xy_dist", xy_dist, "bowl_on_pad", bowl_on_pad, "bowl_upright", bowl_upright, "xy_dist_to_pad", xy_dist_to_pad)
-        return (
-            ball_in_bowl
-            and xy_dist < ball_xy_th
-            and bowl_on_pad
-            and bowl_upright
-            and xy_dist_to_pad < bowl_xy_th
-        )
+        return ball_in_bowl and xy_dist < ball_xy_th and bowl_on_pad and bowl_upright and xy_dist_to_pad < bowl_xy_th
 
     def _get_vis_target_object(self):
         return self.cup
@@ -414,8 +405,3 @@ class TwoArmPouring(TwoArmDexMGEnv):
                 gripper=self.robots[0].gripper["right"],
                 target=self._get_vis_target_object(),
             )
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["lang"] = "pick the cup and pour the ball into the bowl, then pick the bowl and place it on the pad"
-        return ep_meta
