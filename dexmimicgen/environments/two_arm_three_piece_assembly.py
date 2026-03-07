@@ -8,7 +8,9 @@ import numpy as np
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial
+from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
+from robosuite.utils.transform_utils import convert_quat
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
@@ -336,6 +338,44 @@ class TwoArmThreePieceAssembly(TwoArmDexMGEnv):
             piece_1=self.sim.model.body_name2id(self.piece_1.root_body),
             piece_2=self.sim.model.body_name2id(self.piece_2.root_body),
         )
+
+    def _setup_observables(self):
+        observables = super()._setup_observables()
+        if not self.use_object_obs:
+            return observables
+
+        modality = "object"
+
+        @sensor(modality=modality)
+        def base_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["base"]])
+
+        @sensor(modality=modality)
+        def base_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["base"]]), to="xyzw")
+
+        @sensor(modality=modality)
+        def piece_1_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["piece_1"]])
+
+        @sensor(modality=modality)
+        def piece_1_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["piece_1"]]), to="xyzw")
+
+        @sensor(modality=modality)
+        def piece_2_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["piece_2"]])
+
+        @sensor(modality=modality)
+        def piece_2_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["piece_2"]]), to="xyzw")
+
+        sensors = [base_pos, base_quat, piece_1_pos, piece_1_quat, piece_2_pos, piece_2_quat]
+        names = [s.__name__ for s in sensors]
+        for name, s in zip(names, sensors):
+            observables[name] = Observable(name=name, sensor=s, sampling_rate=self.control_freq)
+
+        return observables
 
     def _check_success(self):
         """

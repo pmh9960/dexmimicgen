@@ -7,7 +7,9 @@ from robosuite.models.arenas import MultiTableArena
 from robosuite.models.objects import BoxObject, HammerObject, TransportGroup
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial
+from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
+from robosuite.utils.transform_utils import convert_quat
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
@@ -303,6 +305,51 @@ class TwoArmTransport(TwoArmDexMGEnv):
         in a flatten array, which is how MuJoCo stores physical simulation data.
         """
         super()._setup_references()
+
+        # Store body IDs for privileged obs
+        self._payload_body_id = self.sim.model.body_name2id(self.transport.objects["payload"].root_body)
+        self._trash_body_id = self.sim.model.body_name2id(self.transport.objects["trash"].root_body)
+        self._start_bin_body_id = self.sim.model.body_name2id(self.transport.objects["start_bin"].root_body)
+        self._target_bin_body_id = self.sim.model.body_name2id(self.transport.objects["target_bin"].root_body)
+        self._lid_body_id = self.sim.model.body_name2id(self.transport.objects["lid"].root_body)
+
+    def _setup_observables(self):
+        observables = super()._setup_observables()
+        if not self.use_object_obs:
+            return observables
+
+        modality = "object"
+
+        @sensor(modality=modality)
+        def payload_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self._payload_body_id])
+
+        @sensor(modality=modality)
+        def payload_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self._payload_body_id]), to="xyzw")
+
+        @sensor(modality=modality)
+        def trash_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self._trash_body_id])
+
+        @sensor(modality=modality)
+        def start_bin_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self._start_bin_body_id])
+
+        @sensor(modality=modality)
+        def target_bin_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self._target_bin_body_id])
+
+        @sensor(modality=modality)
+        def lid_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self._lid_body_id])
+
+        sensors = [payload_pos, payload_quat, trash_pos, start_bin_pos, target_bin_pos, lid_pos]
+        names = [s.__name__ for s in sensors]
+        for name, s in zip(names, sensors):
+            observables[name] = Observable(name=name, sensor=s, sampling_rate=self.control_freq)
+
+        return observables
 
     def _reset_internal(self):
         """

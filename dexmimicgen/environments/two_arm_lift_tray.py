@@ -7,7 +7,9 @@ from robosuite.models.arenas import TableArena
 from robosuite.models.objects import BoxObject
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import string_to_array
+from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
+from robosuite.utils.transform_utils import convert_quat
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
@@ -321,6 +323,48 @@ class TwoArmLiftTray(TwoArmDexMGEnv):
         self.pot_center_id = self.sim.model.site_name2id(self.pot.important_sites["center"])
         self.obj0_id = self.sim.model.body_name2id(self.obj0.root_body)
         self.obj1_id = self.sim.model.body_name2id(self.obj1.root_body)
+
+    def _setup_observables(self):
+        observables = super()._setup_observables()
+        if not self.use_object_obs:
+            return observables
+
+        modality = "object"
+
+        @sensor(modality=modality)
+        def pot_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.pot_body_id])
+
+        @sensor(modality=modality)
+        def pot_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.pot_body_id]), to="xyzw")
+
+        @sensor(modality=modality)
+        def handle0_pos(obs_cache):
+            return np.array(self.sim.data.site_xpos[self.handle0_site_id])
+
+        @sensor(modality=modality)
+        def handle1_pos(obs_cache):
+            return np.array(self.sim.data.site_xpos[self.handle1_site_id])
+
+        @sensor(modality=modality)
+        def obj0_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj0_id])
+
+        @sensor(modality=modality)
+        def obj1_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj1_id])
+
+        @sensor(modality=modality)
+        def table_top_pos(obs_cache):
+            return np.array(self.sim.data.site_xpos[self.table_top_id])
+
+        sensors = [pot_pos, pot_quat, handle0_pos, handle1_pos, obj0_pos, obj1_pos, table_top_pos]
+        names = [s.__name__ for s in sensors]
+        for name, s in zip(names, sensors):
+            observables[name] = Observable(name=name, sensor=s, sampling_rate=self.control_freq)
+
+        return observables
 
     def visualize(self, vis_settings):
         """

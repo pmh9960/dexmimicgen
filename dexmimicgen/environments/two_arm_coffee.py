@@ -6,7 +6,9 @@ import numpy as np
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import string_to_array
+from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
+from robosuite.utils.transform_utils import convert_quat
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
@@ -309,6 +311,45 @@ class TwoArmCoffee(TwoArmDexMGEnv):
         # size of bounding box for pod
         # self.pod_size = self.coffee_pod.horizontal_radius
         self.pod_size = self.coffee_pod.get_bounding_box_half_size()
+
+    def _setup_observables(self):
+        observables = super()._setup_observables()
+        if not self.use_object_obs:
+            return observables
+
+        modality = "object"
+
+        @sensor(modality=modality)
+        def coffee_pod_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod"]])
+
+        @sensor(modality=modality)
+        def coffee_pod_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["coffee_pod"]]), to="xyzw")
+
+        @sensor(modality=modality)
+        def coffee_machine_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_machine"]])
+
+        @sensor(modality=modality)
+        def coffee_pod_holder_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_pod_holder"]])
+
+        @sensor(modality=modality)
+        def coffee_machine_lid_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["coffee_machine_lid"]])
+
+        @sensor(modality=modality)
+        def coffee_lid_hinge_angle(obs_cache):
+            return np.array([self.sim.data.qpos[self.hinge_qpos_addr]])
+
+        sensors = [coffee_pod_pos, coffee_pod_quat, coffee_machine_pos,
+                   coffee_pod_holder_pos, coffee_machine_lid_pos, coffee_lid_hinge_angle]
+        names = [s.__name__ for s in sensors]
+        for name, s in zip(names, sensors):
+            observables[name] = Observable(name=name, sensor=s, sampling_rate=self.control_freq)
+
+        return observables
 
     def _check_success(self):
         """

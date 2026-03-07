@@ -6,7 +6,9 @@ import numpy as np
 from robosuite.models.arenas import TableArena
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial, string_to_array
+from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
+from robosuite.utils.transform_utils import convert_quat
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
@@ -264,6 +266,36 @@ class TwoArmBoxCleanup(TwoArmDexMGEnv):
             box=self.sim.model.body_name2id(self.box.root_body),
             lid=self.sim.model.body_name2id(self.lid.root_body),
         )
+
+    def _setup_observables(self):
+        observables = super()._setup_observables()
+        if not self.use_object_obs:
+            return observables
+
+        modality = "object"
+
+        @sensor(modality=modality)
+        def box_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["box"]])
+
+        @sensor(modality=modality)
+        def box_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["box"]]), to="xyzw")
+
+        @sensor(modality=modality)
+        def lid_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["lid"]])
+
+        @sensor(modality=modality)
+        def lid_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["lid"]]), to="xyzw")
+
+        sensors = [box_pos, box_quat, lid_pos, lid_quat]
+        names = [s.__name__ for s in sensors]
+        for name, s in zip(names, sensors):
+            observables[name] = Observable(name=name, sensor=s, sampling_rate=self.control_freq)
+
+        return observables
 
     def _check_success(self):
         """

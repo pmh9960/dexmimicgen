@@ -10,7 +10,9 @@ from robosuite.models.arenas import TableArena
 from robosuite.models.objects.composite.bin import Bin
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import CustomMaterial, add_material, string_to_array
+from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
+from robosuite.utils.transform_utils import convert_quat
 
 import dexmimicgen
 import dexmimicgen.utils.transform_utils as T
@@ -285,6 +287,36 @@ class TwoArmDrawerCleanup(TwoArmDexMGEnv):
         )
         self.drawer_qpos_addr = self.sim.model.get_joint_qpos_addr(self.drawer.joints[0])
         self.drawer_bottom_geom_id = self.sim.model.geom_name2id("DrawerObject_drawer_bottom")
+
+    def _setup_observables(self):
+        observables = super()._setup_observables()
+        if not self.use_object_obs:
+            return observables
+
+        modality = "object"
+
+        @sensor(modality=modality)
+        def cleanup_object_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["object"]])
+
+        @sensor(modality=modality)
+        def cleanup_object_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["object"]]), to="xyzw")
+
+        @sensor(modality=modality)
+        def drawer_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["drawer"]])
+
+        @sensor(modality=modality)
+        def drawer_joint_qpos(obs_cache):
+            return np.array([self.sim.data.qpos[self.drawer_qpos_addr]])
+
+        sensors = [cleanup_object_pos, cleanup_object_quat, drawer_pos, drawer_joint_qpos]
+        names = [s.__name__ for s in sensors]
+        for name, s in zip(names, sensors):
+            observables[name] = Observable(name=name, sensor=s, sampling_rate=self.control_freq)
+
+        return observables
 
     def _reset_internal(self):
         """

@@ -9,7 +9,9 @@ from robosuite.models.objects import CylinderObject
 from robosuite.models.objects.composite.bin import Bin
 from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.mjcf_utils import string_to_array
+from robosuite.utils.observables import Observable, sensor
 from robosuite.utils.placement_samplers import SequentialCompositeSampler, UniformRandomSampler
+from robosuite.utils.transform_utils import convert_quat
 
 import dexmimicgen.utils.transform_utils as T
 from dexmimicgen.environments.two_arm_dexmg_env import TwoArmDexMGEnv
@@ -239,6 +241,40 @@ class TwoArmCanSortRandom(TwoArmDexMGEnv):
             blue_box=self.sim.model.body_name2id(self.blue_box.root_body),
             can=self.sim.model.body_name2id(self.can.root_body),
         )
+
+    def _setup_observables(self):
+        observables = super()._setup_observables()
+        if not self.use_object_obs:
+            return observables
+
+        modality = "object"
+
+        @sensor(modality=modality)
+        def can_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["can"]])
+
+        @sensor(modality=modality)
+        def can_quat(obs_cache):
+            return convert_quat(np.array(self.sim.data.body_xquat[self.obj_body_id["can"]]), to="xyzw")
+
+        @sensor(modality=modality)
+        def red_box_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["red_box"]])
+
+        @sensor(modality=modality)
+        def blue_box_pos(obs_cache):
+            return np.array(self.sim.data.body_xpos[self.obj_body_id["blue_box"]])
+
+        @sensor(modality=modality)
+        def target_is_red(obs_cache):
+            return np.array([1.0 if self.is_red else 0.0])
+
+        sensors = [can_pos, can_quat, red_box_pos, blue_box_pos, target_is_red]
+        names = [s.__name__ for s in sensors]
+        for name, s in zip(names, sensors):
+            observables[name] = Observable(name=name, sensor=s, sampling_rate=self.control_freq)
+
+        return observables
 
     def _initialize_object_states(self):
         """
